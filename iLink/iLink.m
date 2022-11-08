@@ -262,9 +262,9 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
     {
         
 #if TARGET_OS_IPHONE
-#define APP_CLASS UIApplication      
+#define APP_CLASS UIApplication
 #else
-#define APP_CLASS NSApplication  
+#define APP_CLASS NSApplication
 #endif
         
         _delegate = (id<iLinkDelegate>)[[APP_CLASS sharedApplication] delegate];
@@ -432,7 +432,7 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
 }
 
 - (BOOL)shouldPromptForUpdate
-{   
+{
     //preview mode?
     if (self.previewMode)
     {
@@ -721,7 +721,7 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
         {
             iTunesServiceURL = [iTunesServiceURL stringByAppendingFormat:@"?id=%@", @(_appStoreID)];
         }
-        else 
+        else
         {
             iTunesServiceURL = [iTunesServiceURL stringByAppendingFormat:@"?bundleId=%@", self.applicationBundleID];
         }
@@ -734,149 +734,158 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
         NSError *error = nil;
         NSURLResponse *response = nil;
         NSURLRequest *request = [NSURLRequest requestWithURL:(NSURL *)[NSURL URLWithString:iTunesServiceURL] cachePolicy:NSURLRequestReturnCacheDataElseLoad timeoutInterval:REQUEST_TIMEOUT]; // (NSURL *) is new //
-        NSData *data = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:&error];
-        NSInteger statusCode = ((NSHTTPURLResponse *)response).statusCode;
-        if (data && statusCode == 200)
-        {
-            //in case error is garbage...
-            error = nil;
-            
-            id json = nil;
-            if ([NSJSONSerialization class])
+        
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+        
+        NSURLSessionDataTask *postDataTask = [session dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+          
+            NSInteger statusCode = ((NSHTTPURLResponse *)response).statusCode;
+            if (data && statusCode == 200)
             {
-                json = [[NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingOptions)0 error:&error][@"results"] lastObject];
-            }
-            else
-            {
-                //convert to string
-                json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-            }
-            
-            if (!error)
-            {
-                //check bundle ID matches
-                NSString *bundleID = [self valueForKey:@"bundleId" inJSON:json];
-                if (bundleID)
+                //in case error is garbage...
+                error = nil;
+                
+                id json = nil;
+                if ([NSJSONSerialization class])
                 {
-                    if ([bundleID isEqualToString:self.applicationBundleID])
+                    json = [[NSJSONSerialization JSONObjectWithData:data options:(NSJSONReadingOptions)0 error:&error][@"results"] lastObject];
+                }
+                else
+                {
+                    //convert to string
+                    json = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+                }
+                
+                if (!error)
+                {
+                    //check bundle ID matches
+                    NSString *bundleID = [self valueForKey:@"bundleId" inJSON:json];
+                    if (bundleID)
                     {
-                        //get genre
-                        if (self.appStoreGenreID == 0)
+                        if ([bundleID isEqualToString:self.applicationBundleID])
                         {
-                            self.appStoreGenreID = [[self valueForKey:@"primaryGenreId" inJSON:json] integerValue];
-                        }
-                        
-                        //get app id
-                        if (!_appStoreID)
-                        {
-                            NSString *appStoreIDString = [self valueForKey:@"trackId" inJSON:json];
-                            [self performSelectorOnMainThread:@selector(setAppStoreIDOnMainThread:) withObject:appStoreIDString waitUntilDone:YES];
-                            
-                            if (self.verboseLogging)
+                            //get genre
+                            if (self.appStoreGenreID == 0)
                             {
-                                NSLog(@"iLink found the app on iTunes. The App Store ID is %@", appStoreIDString);
+                                self.appStoreGenreID = [[self valueForKey:@"primaryGenreId" inJSON:json] integerValue];
                             }
                             
-                            
-                    
-                        }
-                        
-                        //check version
-                        if (!self.applicationStoreVersion)
-                        {
-                            NSString *latestVersion = [self valueForKey:@"version" inJSON:json];
-                            
-                            self.applicationStoreVersion = latestVersion;
-                            
-                            NSLog(@"Latest version on store : %@",latestVersion);
-                            if ([latestVersion compare:self.applicationVersion options:NSNumericSearch] == NSOrderedDescending)
+                            //get app id
+                            if (!_appStoreID)
                             {
+                                NSString *appStoreIDString = [self valueForKey:@"trackId" inJSON:json];
+                                [self performSelectorOnMainThread:@selector(setAppStoreIDOnMainThread:) withObject:appStoreIDString waitUntilDone:YES];
+                                
                                 if (self.verboseLogging)
                                 {
-                                    NSLog(@"iLink found that the installed application version (%@) is not the latest version on the App Store, which is %@", self.applicationVersion, latestVersion);
+                                    NSLog(@"iLink found the app on iTunes. The App Store ID is %@", appStoreIDString);
                                 }
                                 
-                                error = [NSError errorWithDomain:iLinkErrorDomain code:iLinkErrorApplicationIsNotLatestVersion userInfo:@{NSLocalizedDescriptionKey: @"Installed app is not the latest version available"}];
                                 
-                                //[self shouldPromptForUpdate];
-                            }
-                        }
                         
-                        if (!_artistID)
-                        {
-                            NSString *artistIDString = [self valueForKey:@"artistId" inJSON:json];
-                            [self performSelectorOnMainThread:@selector(setArtistIDOnMainThread:) withObject:artistIDString waitUntilDone:YES];
+                            }
                             
+                            //check version
+                            if (!self.applicationStoreVersion)
+                            {
+                                NSString *latestVersion = [self valueForKey:@"version" inJSON:json];
+                                
+                                self.applicationStoreVersion = latestVersion;
+                                
+                                NSLog(@"Latest version on store : %@",latestVersion);
+                                if ([latestVersion compare:self.applicationVersion options:NSNumericSearch] == NSOrderedDescending)
+                                {
+                                    if (self.verboseLogging)
+                                    {
+                                        NSLog(@"iLink found that the installed application version (%@) is not the latest version on the App Store, which is %@", self.applicationVersion, latestVersion);
+                                    }
+                                    
+                                    error = [NSError errorWithDomain:iLinkErrorDomain code:iLinkErrorApplicationIsNotLatestVersion userInfo:@{NSLocalizedDescriptionKey: @"Installed app is not the latest version available"}];
+                                    
+                                    //[self shouldPromptForUpdate];
+                                }
+                            }
+                            
+                            if (!_artistID)
+                            {
+                                NSString *artistIDString = [self valueForKey:@"artistId" inJSON:json];
+                                [self performSelectorOnMainThread:@selector(setArtistIDOnMainThread:) withObject:artistIDString waitUntilDone:YES];
+                                
+                                if (self.verboseLogging)
+                                {
+                                    NSLog(@"iLink found the artist on iTunes. The Artist ID is %@", artistIDString);
+                                }
+                                
+                                
+                                
+                            }
+                            
+                            
+                            
+                            
+                            if ([self.delegate respondsToSelector:@selector(iLinkDidFindiTunesInfo)]) {
+                                [self.delegate iLinkDidFindiTunesInfo];
+                            }else if (self.verboseLogging)
+                            {
+                                NSLog(@"iLinkDidFindiTunesInfo isn't implemented. implement that if you want to get notified");
+                            }
+
+                            
+                        }
+                        else
+                        {
                             if (self.verboseLogging)
                             {
-                                NSLog(@"iLink found the artist on iTunes. The Artist ID is %@", artistIDString);
+                                NSLog(@"iLink found that the application bundle ID (%@) does not match the bundle ID of the app found on iTunes (%@) with the specified App Store ID (%@)", self.applicationBundleID, bundleID, @(self.appStoreID));
                             }
                             
-                            
-                            
+                            error = [NSError errorWithDomain:iLinkErrorDomain code:iLinkErrorBundleIdDoesNotMatchAppStore userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Application bundle ID does not match expected value of %@", bundleID]}];
                         }
-                        
-                        
-                        
-                        
-                        if ([self.delegate respondsToSelector:@selector(iLinkDidFindiTunesInfo)]) {
-                            [self.delegate iLinkDidFindiTunesInfo];
-                        }else if (self.verboseLogging)
-                        {
-                            NSLog(@"iLinkDidFindiTunesInfo isn't implemented. implement that if you want to get notified");
-                        }
-
-                        
                     }
-                    else
+                    else if (_appStoreID || !self.ratingsURL || !self.appLocalURL || !self.appShareURL)
                     {
                         if (self.verboseLogging)
                         {
-                            NSLog(@"iLink found that the application bundle ID (%@) does not match the bundle ID of the app found on iTunes (%@) with the specified App Store ID (%@)", self.applicationBundleID, bundleID, @(self.appStoreID));
+                            NSLog(@"iLink could not find this application on iTunes. If your app is not intended for App Store release then you must specify a custom relevant URL (ratingURL/appLocalURL/appShareURL). If this is the first release of your application then it's not a problem that it cannot be found on the store yet");
                         }
-                        
-                        error = [NSError errorWithDomain:iLinkErrorDomain code:iLinkErrorBundleIdDoesNotMatchAppStore userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Application bundle ID does not match expected value of %@", bundleID]}];
+                        if (!self.previewMode)
+                        {
+                            error = [NSError errorWithDomain:iLinkErrorDomain
+                                                        code:iLinkErrorApplicationNotFoundOnAppStore
+                                                    userInfo:@{NSLocalizedDescriptionKey: @"The application could not be found on the App Store."}];
+                        }
                     }
-                }
-                else if (_appStoreID || !self.ratingsURL || !self.appLocalURL || !self.appShareURL)
-                {
-                    if (self.verboseLogging)
+                    else if (!_appStoreID && self.verboseLogging)
                     {
-                        NSLog(@"iLink could not find this application on iTunes. If your app is not intended for App Store release then you must specify a custom relevant URL (ratingURL/appLocalURL/appShareURL). If this is the first release of your application then it's not a problem that it cannot be found on the store yet");
+                        NSLog(@"iLink could not find your app on iTunes. If your app is not yet on the store or is not intended for App Store release then don't worry about this");
                     }
-                    if (!self.previewMode)
-                    {
-                        error = [NSError errorWithDomain:iLinkErrorDomain
-                                                    code:iLinkErrorApplicationNotFoundOnAppStore
-                                                userInfo:@{NSLocalizedDescriptionKey: @"The application could not be found on the App Store."}];
-                    }
-                }
-                else if (!_appStoreID && self.verboseLogging)
-                {
-                    NSLog(@"iLink could not find your app on iTunes. If your app is not yet on the store or is not intended for App Store release then don't worry about this");
                 }
             }
-        }
-        else if (statusCode >= 400)
-        {
-            //http error
-            NSString *message = [NSString stringWithFormat:@"The server returned a %@ error", @(statusCode)];
-            error = [NSError errorWithDomain:@"HTTPResponseErrorDomain" code:statusCode userInfo:@{NSLocalizedDescriptionKey: message}];
-        }
+            else if (statusCode >= 400)
+            {
+                //http error
+                NSString *message = [NSString stringWithFormat:@"The server returned a %@ error", @(statusCode)];
+                error = [NSError errorWithDomain:@"HTTPResponseErrorDomain" code:statusCode userInfo:@{NSLocalizedDescriptionKey: message}];
+            }
+            
+            //handle errors (ignoring sandbox issues)
+            if (error && !(error.code == EPERM && [error.domain isEqualToString:NSPOSIXErrorDomain] && _appStoreID))
+            {
+                [self performSelectorOnMainThread:@selector(connectionError:) withObject:error waitUntilDone:YES];
+            }
+            else if (self.appStoreID || self.previewMode)
+            {
+                //show prompt
+                [self performSelectorOnMainThread:@selector(connectionSucceeded) withObject:nil waitUntilDone:YES];
+            }
+            
+            //finished
+            checking = NO;
+            
+        }];
         
-        //handle errors (ignoring sandbox issues)
-        if (error && !(error.code == EPERM && [error.domain isEqualToString:NSPOSIXErrorDomain] && _appStoreID))
-        {
-            [self performSelectorOnMainThread:@selector(connectionError:) withObject:error waitUntilDone:YES];
-        }
-        else if (self.appStoreID || self.previewMode)
-        {
-            //show prompt
-            [self performSelectorOnMainThread:@selector(connectionSucceeded) withObject:nil waitUntilDone:YES];
-        }
+        [postDataTask resume];
         
-        //finished
-        checking = NO;
     }
 }
 
@@ -1230,7 +1239,7 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
 - (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex
 {
     if (buttonIndex == alertView.cancelButtonIndex)
-    {        
+    {
         //ignore this version
         self.declinedThisVersion = YES;
         
@@ -1239,7 +1248,7 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
     }
     else if (([self.cancelButtonLabel length] && buttonIndex == 2) ||
              ([self.cancelButtonLabel length] == 0 && buttonIndex == 1))
-    {        
+    {
         //remind later
         self.lastReminded = [NSDate date];
         
@@ -1571,7 +1580,7 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
     [self openArtistPageInAppStore];
 }
 
-#if TARGET_OS_IPHONE 
+#if TARGET_OS_IPHONE
 -(void)initUpdateLocalNotification{
     UIUserNotificationType userNotificationTypes = (UIUserNotificationType)(UIUserNotificationTypeAlert |
                                                                             UIUserNotificationTypeBadge |
