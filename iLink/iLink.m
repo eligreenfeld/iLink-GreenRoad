@@ -737,8 +737,14 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
         
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
         
+        __weak typeof(self) weakSelf = self;
         NSURLSessionDataTask *postDataTask = [session dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
           
+            __strong typeof(self) strongSelf = weakSelf;
+            if (!strongSelf) {
+                return;
+            }
+            
             NSInteger statusCode = ((NSHTTPURLResponse *)response).statusCode;
             if (data && statusCode == 200)
             {
@@ -759,24 +765,24 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
                 if (!error)
                 {
                     //check bundle ID matches
-                    NSString *bundleID = [self valueForKey:@"bundleId" inJSON:json];
+                    NSString *bundleID = [strongSelf valueForKey:@"bundleId" inJSON:json];
                     if (bundleID)
                     {
-                        if ([bundleID isEqualToString:self.applicationBundleID])
+                        if ([bundleID isEqualToString:strongSelf.applicationBundleID])
                         {
                             //get genre
-                            if (self.appStoreGenreID == 0)
+                            if (strongSelf.appStoreGenreID == 0)
                             {
-                                self.appStoreGenreID = [[self valueForKey:@"primaryGenreId" inJSON:json] integerValue];
+                                strongSelf.appStoreGenreID = [[strongSelf valueForKey:@"primaryGenreId" inJSON:json] integerValue];
                             }
                             
                             //get app id
                             if (!_appStoreID)
                             {
-                                NSString *appStoreIDString = [self valueForKey:@"trackId" inJSON:json];
-                                [self performSelectorOnMainThread:@selector(setAppStoreIDOnMainThread:) withObject:appStoreIDString waitUntilDone:YES];
+                                NSString *appStoreIDString = [strongSelf valueForKey:@"trackId" inJSON:json];
+                                [strongSelf performSelectorOnMainThread:@selector(setAppStoreIDOnMainThread:) withObject:appStoreIDString waitUntilDone:YES];
                                 
-                                if (self.verboseLogging)
+                                if (strongSelf.verboseLogging)
                                 {
                                     NSLog(@"iLink found the app on iTunes. The App Store ID is %@", appStoreIDString);
                                 }
@@ -786,32 +792,32 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
                             }
                             
                             //check version
-                            if (!self.applicationStoreVersion)
+                            if (!strongSelf.applicationStoreVersion)
                             {
-                                NSString *latestVersion = [self valueForKey:@"version" inJSON:json];
+                                NSString *latestVersion = [strongSelf valueForKey:@"version" inJSON:json];
                                 
-                                self.applicationStoreVersion = latestVersion;
+                                strongSelf.applicationStoreVersion = latestVersion;
                                 
                                 NSLog(@"Latest version on store : %@",latestVersion);
-                                if ([latestVersion compare:self.applicationVersion options:NSNumericSearch] == NSOrderedDescending)
+                                if ([latestVersion compare:strongSelf.applicationVersion options:NSNumericSearch] == NSOrderedDescending)
                                 {
-                                    if (self.verboseLogging)
+                                    if (strongSelf.verboseLogging)
                                     {
-                                        NSLog(@"iLink found that the installed application version (%@) is not the latest version on the App Store, which is %@", self.applicationVersion, latestVersion);
+                                        NSLog(@"iLink found that the installed application version (%@) is not the latest version on the App Store, which is %@", strongSelf.applicationVersion, latestVersion);
                                     }
                                     
                                     error = [NSError errorWithDomain:iLinkErrorDomain code:iLinkErrorApplicationIsNotLatestVersion userInfo:@{NSLocalizedDescriptionKey: @"Installed app is not the latest version available"}];
                                     
-                                    //[self shouldPromptForUpdate];
+                                    //[strongSelf shouldPromptForUpdate];
                                 }
                             }
                             
                             if (!_artistID)
                             {
-                                NSString *artistIDString = [self valueForKey:@"artistId" inJSON:json];
-                                [self performSelectorOnMainThread:@selector(setArtistIDOnMainThread:) withObject:artistIDString waitUntilDone:YES];
+                                NSString *artistIDString = [strongSelf valueForKey:@"artistId" inJSON:json];
+                                [strongSelf performSelectorOnMainThread:@selector(setArtistIDOnMainThread:) withObject:artistIDString waitUntilDone:YES];
                                 
-                                if (self.verboseLogging)
+                                if (strongSelf.verboseLogging)
                                 {
                                     NSLog(@"iLink found the artist on iTunes. The Artist ID is %@", artistIDString);
                                 }
@@ -823,9 +829,9 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
                             
                             
                             
-                            if ([self.delegate respondsToSelector:@selector(iLinkDidFindiTunesInfo)]) {
-                                [self.delegate iLinkDidFindiTunesInfo];
-                            }else if (self.verboseLogging)
+                            if ([strongSelf.delegate respondsToSelector:@selector(iLinkDidFindiTunesInfo)]) {
+                                [strongSelf.delegate iLinkDidFindiTunesInfo];
+                            }else if (strongSelf.verboseLogging)
                             {
                                 NSLog(@"iLinkDidFindiTunesInfo isn't implemented. implement that if you want to get notified");
                             }
@@ -834,28 +840,28 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
                         }
                         else
                         {
-                            if (self.verboseLogging)
+                            if (strongSelf.verboseLogging)
                             {
-                                NSLog(@"iLink found that the application bundle ID (%@) does not match the bundle ID of the app found on iTunes (%@) with the specified App Store ID (%@)", self.applicationBundleID, bundleID, @(self.appStoreID));
+                                NSLog(@"iLink found that the application bundle ID (%@) does not match the bundle ID of the app found on iTunes (%@) with the specified App Store ID (%@)", strongSelf.applicationBundleID, bundleID, @(strongSelf.appStoreID));
                             }
                             
                             error = [NSError errorWithDomain:iLinkErrorDomain code:iLinkErrorBundleIdDoesNotMatchAppStore userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Application bundle ID does not match expected value of %@", bundleID]}];
                         }
                     }
-                    else if (_appStoreID || !self.ratingsURL || !self.appLocalURL || !self.appShareURL)
+                    else if (_appStoreID || !strongSelf.ratingsURL || !strongSelf.appLocalURL || !strongSelf.appShareURL)
                     {
-                        if (self.verboseLogging)
+                        if (strongSelf.verboseLogging)
                         {
                             NSLog(@"iLink could not find this application on iTunes. If your app is not intended for App Store release then you must specify a custom relevant URL (ratingURL/appLocalURL/appShareURL). If this is the first release of your application then it's not a problem that it cannot be found on the store yet");
                         }
-                        if (!self.previewMode)
+                        if (!strongSelf.previewMode)
                         {
                             error = [NSError errorWithDomain:iLinkErrorDomain
                                                         code:iLinkErrorApplicationNotFoundOnAppStore
                                                     userInfo:@{NSLocalizedDescriptionKey: @"The application could not be found on the App Store."}];
                         }
                     }
-                    else if (!_appStoreID && self.verboseLogging)
+                    else if (!_appStoreID && strongSelf.verboseLogging)
                     {
                         NSLog(@"iLink could not find your app on iTunes. If your app is not yet on the store or is not intended for App Store release then don't worry about this");
                     }
@@ -871,12 +877,12 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
             //handle errors (ignoring sandbox issues)
             if (error && !(error.code == EPERM && [error.domain isEqualToString:NSPOSIXErrorDomain] && _appStoreID))
             {
-                [self performSelectorOnMainThread:@selector(connectionError:) withObject:error waitUntilDone:YES];
+                [strongSelf performSelectorOnMainThread:@selector(connectionError:) withObject:error waitUntilDone:YES];
             }
-            else if (self.appStoreID || self.previewMode)
+            else if (strongSelf.appStoreID || strongSelf.previewMode)
             {
                 //show prompt
-                [self performSelectorOnMainThread:@selector(connectionSucceeded) withObject:nil waitUntilDone:YES];
+                [strongSelf performSelectorOnMainThread:@selector(connectionSucceeded) withObject:nil waitUntilDone:YES];
             }
             
             //finished
