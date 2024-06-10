@@ -266,8 +266,9 @@ static NSInteger const kUpdateNotification = 34567; // Just a randoom number to 
 #else
 #define APP_CLASS NSApplication
 #endif
-        
-        _delegate = (id<iLinkDelegate>)[[APP_CLASS sharedApplication] delegate];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            _delegate = (id<iLinkDelegate>)[[APP_CLASS sharedApplication] delegate];
+        });
     }
     return _delegate;
 }
