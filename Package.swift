@@ -21,7 +21,7 @@ let package = Package(
             resources: [
                 .process("iLink.bundle")
             ],
-            publicHeadersPath: "."
+            publicHeadersPath: "include"
         )
     ]
 )
